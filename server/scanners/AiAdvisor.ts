@@ -6,9 +6,45 @@ export interface AiSummaryResult {
   executiveScoreRating: string;
   topPriorities: string[];
   positiveHighlights: string[];
+  aiProvider?: 'nvidia' | 'gemini' | 'heuristic';
+  aiModel?: string;
 }
 
 export class AiAdvisor {
+  /**
+   * Determine the configured AI provider. NVIDIA is prioritized as the default.
+   */
+  public static getActiveProviderInfo(): {
+    provider: 'nvidia' | 'gemini' | 'heuristic';
+    model: string;
+    isDefault: boolean;
+  } {
+    const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
+
+    if (nvidiaKey) {
+      return {
+        provider: 'nvidia',
+        model: process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct',
+        isDefault: true
+      };
+    }
+
+    if (geminiKey) {
+      return {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        isDefault: false
+      };
+    }
+
+    return {
+      provider: 'heuristic',
+      model: 'built-in-security-rules',
+      isDefault: false
+    };
+  }
+
   public static async generateSummary(
     domain: string,
     scores: CategoryScores,
@@ -24,12 +60,7 @@ export class AiAdvisor {
     else if (scores.overall >= 80) rating = 'Good Baseline';
     else if (scores.overall >= 60) rating = 'Needs Improvement';
 
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (apiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `You are a Senior Website Security & DevOps Auditor.
+    const prompt = `You are a Senior Website Security & DevOps Auditor.
 Analyze the following automated scan results for the website "${domain}".
 Only use the provided findings; do NOT invent checks that were not performed.
 
@@ -58,26 +89,90 @@ Generate a JSON object with:
 
 Return ONLY the raw JSON object, no markdown codeblocks.`;
 
+    // 1. DEFAULT PROVIDER: NVIDIA NIM API (Primary)
+    const nvidiaKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_NIM_API_KEY;
+    if (nvidiaKey) {
+      try {
+        const nvidiaModel = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${nvidiaKey.trim()}`
+          },
+          body: JSON.stringify({
+            model: nvidiaModel,
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an elite Cyber Security & Web Infrastructure Auditor. Always return valid JSON only.'
+              },
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 1024
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const content = data?.choices?.[0]?.message?.content?.trim() || '';
+          const cleaned = content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+          const parsed = JSON.parse(cleaned);
+
+          return {
+            summary: parsed.summary || 'Scan audit complete.',
+            executiveScoreRating: parsed.executiveScoreRating || rating,
+            topPriorities: Array.isArray(parsed.topPriorities) ? parsed.topPriorities : [],
+            positiveHighlights: Array.isArray(parsed.positiveHighlights) ? parsed.positiveHighlights : [],
+            aiProvider: 'nvidia',
+            aiModel: nvidiaModel
+          };
+        } else {
+          const errText = await res.text();
+          console.warn(`[AiAdvisor] NVIDIA API responded with status ${res.status}:`, errText);
+        }
+      } catch (nvidiaErr: any) {
+        console.warn('[AiAdvisor] NVIDIA API execution error, falling back to secondary provider:', nvidiaErr?.message);
+      }
+    }
+
+    // 2. SECONDARY PROVIDER: Google Gemini API (Fallback)
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: prompt
         });
 
         const text = response.text?.trim() || '';
-        const cleaned = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+        const cleaned = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
         const parsed = JSON.parse(cleaned);
+
         return {
           summary: parsed.summary || 'Scan audit complete.',
           executiveScoreRating: parsed.executiveScoreRating || rating,
           topPriorities: Array.isArray(parsed.topPriorities) ? parsed.topPriorities : [],
-          positiveHighlights: Array.isArray(parsed.positiveHighlights) ? parsed.positiveHighlights : []
+          positiveHighlights: Array.isArray(parsed.positiveHighlights) ? parsed.positiveHighlights : [],
+          aiProvider: 'gemini',
+          aiModel: 'gemini-2.5-flash'
         };
-      } catch (err: any) {
-        // Fall back gracefully to built-in heuristic synthesis
+      } catch (geminiErr: any) {
+        console.warn('[AiAdvisor] Gemini API error, falling back to heuristic engine:', geminiErr?.message);
       }
     }
 
-    // High quality deterministic fallback generator
+    // 3. TERTIARY / DETERMINISTIC FALLBACK: Built-in Expert Rule Synthesizer
     const topPriorities: string[] = [];
     const positiveHighlights: string[] = [];
 
@@ -91,7 +186,7 @@ Return ONLY the raw JSON object, no markdown codeblocks.`;
     }
     if (topPriorities.length === 0) {
       topPriorities.push('Maintain automated SSL certificate renewal checks.');
-      topPriorities.push('Periodically review security headers against new browser standards.');
+      topPriorities.push('Periodically review security headers against modern browser standards.');
     }
 
     for (const f of passedFindings.slice(0, 3)) {
@@ -115,7 +210,9 @@ Return ONLY the raw JSON object, no markdown codeblocks.`;
       summary,
       executiveScoreRating: rating,
       topPriorities,
-      positiveHighlights
+      positiveHighlights,
+      aiProvider: 'heuristic',
+      aiModel: 'built-in-rules'
     };
   }
 }

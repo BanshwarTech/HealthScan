@@ -207,6 +207,8 @@ export interface ScanReport {
     executiveScoreRating: string;
     topPriorities: string[];
     positiveHighlights: string[];
+    aiProvider?: 'nvidia' | 'gemini' | 'heuristic';
+    aiModel?: string;
   };
   errorMessage?: string;
 }

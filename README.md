@@ -75,7 +75,7 @@
 - **Backend**: Node.js, Express, TSX, Cheerio
 - **Database & Auth**: Google Firebase Auth & Cloud Firestore
 - **Security**: Custom SSRF validator, reCAPTCHA challenge, non-invasive passive crawlers
-- **AI Engine**: Google `@google/genai` TypeScript SDK (optional intelligent remediation advisor)
+- **AI Engine**: **NVIDIA NIM API** (Default: `meta/llama-3.3-70b-instruct`) with Google Gemini 2.5 Flash & Expert Heuristic fallbacks
 
 ---
 
@@ -84,6 +84,7 @@
 ### Prerequisites
 - Node.js 18+ or Bun
 - A Firebase project (or use the built-in configured credentials)
+- NVIDIA API Key *(Optional, defaults to NVIDIA NIM)* or Gemini API Key
 
 ### 1. Clone the Repository
 ```bash
@@ -101,7 +102,12 @@ Create a `.env` file in the root directory (refer to `.env.example`):
 ```env
 PORT=3000
 NODE_ENV=development
-# Optional: GEMINI_API_KEY for AI-powered executive remediation notes
+
+# PRIMARY DEFAULT AI PROVIDER: NVIDIA NIM
+NVIDIA_API_KEY=nvapi-your_nvidia_api_key_here
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+
+# SECONDARY FALLBACK PROVIDER: Google Gemini
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 

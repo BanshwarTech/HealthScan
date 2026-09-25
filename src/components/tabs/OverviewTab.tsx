@@ -105,6 +105,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ report, onNavigateTab 
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <h3 className="text-base font-bold text-white">Executive Technical Summary</h3>
+                {aiSummary?.aiProvider === 'nvidia' ? (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    NVIDIA NIM AI ({aiSummary.aiModel || 'Llama 3.3'})
+                  </span>
+                ) : aiSummary?.aiProvider === 'gemini' ? (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[10px] font-bold">
+                    Gemini 2.5 Flash
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold">
+                    Heuristic Security Rules
+                  </span>
+                )}
               </div>
               {aiSummary?.executiveScoreRating && (
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">

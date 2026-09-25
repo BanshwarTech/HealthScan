@@ -293,9 +293,28 @@ apiRouter.get('/stats', (req: Request, res: Response) => {
         dnsResolver: 'operational',
         ssrfProtection: 'active',
         redisQueue: 'connected',
+        aiAdvisor: AiAdvisor.getActiveProviderInfo(),
         nodeUptimeSeconds: Math.round(process.uptime()),
         memoryUsageMb: Math.round(process.memoryUsage().rss / 1024 / 1024)
       }
     }
   });
 });
+
+// 10. AI Provider Status
+apiRouter.get('/ai-status', (req: Request, res: Response) => {
+  const info = AiAdvisor.getActiveProviderInfo();
+  res.json({
+    success: true,
+    data: {
+      ...info,
+      supportedModels: [
+        'meta/llama-3.3-70b-instruct (Default)',
+        'meta/llama-3.1-70b-instruct',
+        'mistralai/mixtral-8x22b-instruct-v0.1',
+        'nvidia/nemotron-4-340b-instruct'
+      ]
+    }
+  });
+});
+

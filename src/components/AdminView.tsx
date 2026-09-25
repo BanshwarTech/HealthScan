@@ -136,6 +136,23 @@ export const AdminView: React.FC = () => {
               Operational
             </span>
           </div>
+
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between md:col-span-2">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-slate-200">AI Security & Remediation Advisor</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  NVIDIA NIM (Default)
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Primary: NVIDIA API (<code className="text-emerald-400">meta/llama-3.3-70b-instruct</code>) · Fallback: Gemini 2.5 Flash & Expert Heuristics
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+              Configured
+            </span>
+          </div>
         </div>
       </div>
 
