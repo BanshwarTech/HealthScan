@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with plan tiers and daily scan quotas",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's primary email address"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name or nickname"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar image URL"
+        },
+        "plan": {
+          "type": "string",
+          "enum": ["free", "pro", "enterprise"],
+          "description": "Active subscription plan tier"
+        },
+        "dailyScansUsed": {
+          "type": "number",
+          "description": "Number of scans run by the user today"
+        },
+        "lastScanDate": {
+          "type": "string",
+          "description": "Date string of last scan activity (YYYY-MM-DD) for quota reset"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of profile creation"
+        }
+      },
+      "required": ["email", "plan", "dailyScansUsed", "createdAt"]
+    },
+    "UserScan": {
+      "title": "UserScan",
+      "description": "Historical scan report saved by the user",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The normalized scanned URL"
+        },
+        "domain": {
+          "type": "string",
+          "description": "The domain scanned"
+        },
+        "overallScore": {
+          "type": "number",
+          "description": "Calculated overall health score (0-100)"
+        },
+        "securityScore": {
+          "type": "number",
+          "description": "Security category score"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when scan was executed"
+        }
+      },
+      "required": ["url", "domain", "overallScore", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document storing plan and usage metrics"
+    },
+    "/users/{userId}/scans/{scanId}": {
+      "schema": "UserScan",
+      "description": "Saved scan results created by the user"
+    }
+  }
+}

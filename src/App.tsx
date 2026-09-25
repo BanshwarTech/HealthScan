@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { HeroScanner } from './components/HeroScanner';
 import { ScanProgressModal } from './components/ScanProgressModal';
@@ -6,16 +7,29 @@ import { ReportView } from './components/ReportView';
 import { DashboardView } from './components/DashboardView';
 import { AdminView } from './components/AdminView';
 import { PricingFaqSection } from './components/PricingFaqSection';
+import { AuthModal } from './components/auth/AuthModal';
+import { PlanUpgradeModal } from './components/auth/PlanUpgradeModal';
+import { ScanLimitReachedModal } from './components/auth/ScanLimitReachedModal';
+import { ScanHistoryModal } from './components/auth/ScanHistoryModal';
 import { initiateScan, getScan, getPublicReport } from './api';
 import { ScanReport } from './types';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { PlanType } from './firebase';
 
-export default function App() {
+function MainApp() {
   const [currentView, setCurrentView] = useState<'scanner' | 'report' | 'dashboard' | 'admin'>('scanner');
   const [activeReport, setActiveReport] = useState<ScanReport | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isPublicView, setIsPublicView] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Modals state
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+  const [limitReason, setLimitReason] = useState<string | undefined>(undefined);
+
+  const { recordScan, user, changePlan, openAuthModal } = useAuth();
 
   const [scanProgress, setScanProgress] = useState<{
     targetDomain: string;
@@ -66,7 +80,7 @@ export default function App() {
       // Listen via Server-Sent Events (SSE)
       const eventSource = new EventSource(`/api/scans/${scanId}/stream`);
 
-      eventSource.onmessage = (event) => {
+      eventSource.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'progress') {
@@ -80,6 +94,14 @@ export default function App() {
             setActiveReport(data.report);
             setIsScanning(false);
             setCurrentView('report');
+
+            // Record scan into user quota and history
+            await recordScan({
+              url: data.report.url,
+              domain: data.report.domain,
+              overallScore: data.report.scores.overall,
+              securityScore: data.report.scores.security
+            });
           } else if (data.type === 'error') {
             eventSource.close();
             setIsScanning(false);
@@ -103,6 +125,13 @@ export default function App() {
               setActiveReport(data);
               setIsScanning(false);
               setCurrentView('report');
+
+              await recordScan({
+                url: data.url,
+                domain: data.domain,
+                overallScore: data.scores.overall,
+                securityScore: data.scores.security
+              });
             } else if (data.status === 'failed') {
               clearInterval(interval);
               setIsScanning(false);
@@ -136,6 +165,20 @@ export default function App() {
     setCurrentView('report');
   };
 
+  const handleQuotaReached = (reason?: string) => {
+    setLimitReason(reason);
+    setLimitModalOpen(true);
+  };
+
+  const handleSelectPlan = async (planId: PlanType) => {
+    if (!user) {
+      openAuthModal('signin');
+      return;
+    }
+    await changePlan(planId);
+    setIsUpgradeModalOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
       {/* Top Navigation */}
@@ -150,6 +193,8 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         hasActiveReport={Boolean(activeReport)}
+        onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+        onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
       />
 
       {/* Global Error Banner */}
@@ -173,11 +218,14 @@ export default function App() {
             <HeroScanner
               onScan={(url) => handleStartScan(url)}
               isLoading={isScanning}
+              onQuotaReached={handleQuotaReached}
+              onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
             />
             <PricingFaqSection
               onScanClick={() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
+              onSelectPlan={handleSelectPlan}
             />
           </div>
         )}
@@ -211,6 +259,34 @@ export default function App() {
         progressPercent={scanProgress.percent}
       />
 
+      {/* Authentication Modal */}
+      <AuthModal />
+
+      {/* Subscription Plans & Upgrade Modal */}
+      <PlanUpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+      />
+
+      {/* Daily Quota Reached Modal */}
+      <ScanLimitReachedModal
+        isOpen={limitModalOpen}
+        onClose={() => setLimitModalOpen(false)}
+        onOpenUpgrade={() => setIsUpgradeModalOpen(true)}
+        reason={limitReason}
+      />
+
+      {/* User Scan History Modal */}
+      <ScanHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        onSelectUrl={(url) => {
+          setIsHistoryModalOpen(false);
+          setCurrentView('scanner');
+          handleStartScan(url);
+        }}
+      />
+
       {/* Footer */}
       <footer className="border-t border-slate-850 bg-slate-950 py-8 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -218,19 +294,27 @@ export default function App() {
             <div className="w-6 h-6 rounded-md bg-blue-600/20 text-blue-400 flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <span className="font-semibold text-slate-300">Website Security & Health Scanner</span>
+            <span className="font-semibold text-slate-300">HealthScan Security & Technical Auditor</span>
             <span>© 2026 All rights reserved.</span>
           </div>
 
           <div className="flex items-center gap-4 text-slate-400">
             <span>SSRF Defended</span>
             <span>•</span>
-            <span>Non-Invasive</span>
+            <span>Firebase Auth & Firestore</span>
             <span>•</span>
-            <span>RFC 1918 Enforced</span>
+            <span>Google reCAPTCHA</span>
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }

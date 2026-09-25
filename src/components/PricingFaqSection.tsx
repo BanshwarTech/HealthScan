@@ -15,9 +15,10 @@ import {
 
 interface PricingFaqSectionProps {
   onScanClick: () => void;
+  onSelectPlan?: (planId: 'free' | 'pro' | 'enterprise') => void;
 }
 
-export const PricingFaqSection: React.FC<PricingFaqSectionProps> = ({ onScanClick }) => {
+export const PricingFaqSection: React.FC<PricingFaqSectionProps> = ({ onScanClick, onSelectPlan }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const features = [
@@ -68,50 +69,52 @@ export const PricingFaqSection: React.FC<PricingFaqSectionProps> = ({ onScanClic
 
   const plans = [
     {
-      name: 'Free',
+      id: 'free' as const,
+      name: 'Free Starter',
       price: '$0',
       period: 'forever',
       desc: 'Essential website health and security checks for personal sites and blogs.',
       features: [
-        'Up to 10 scans / day',
+        '5 scans / day',
         'Full security & SSL report',
         'HTTP headers evaluation',
         'Basic SEO & DNS audit',
-        'Shareable public reports'
+        'Copy-paste code remediation'
       ],
       cta: 'Start Free Audit',
       popular: false
     },
     {
-      name: 'Pro',
+      id: 'pro' as const,
+      name: 'Pro Engineer',
       price: '$29',
       period: 'per month',
-      desc: 'Continuous monitoring and prioritized remediation for growing businesses.',
+      desc: 'High-frequency audits, deep link crawler, and priority remediation for pros.',
       features: [
-        'Unlimited automated scans',
+        '50 scans / day',
+        'Deep DNS, SPF & DMARC spoofing audits',
         'Executive AI remediation checklist',
         'Printable PDF reports',
         'Score trendline history (68 → 82)',
-        'Scheduled weekly re-scans',
         'Deep link crawling (up to 50 URLs)'
       ],
-      cta: 'Choose Pro',
+      cta: 'Choose Pro (50 Scans/Day)',
       popular: true
     },
     {
-      name: 'Agency',
+      id: 'enterprise' as const,
+      name: 'Enterprise Scale',
       price: '$99',
       period: 'per month',
-      desc: 'Multi-client audits and white-label client presentations for digital agencies.',
+      desc: 'Unlimited audit capability, continuous monitoring, and webhook alerting.',
       features: [
-        'Everything in Pro',
-        'Unlimited client projects',
-        'White-label PDF exports',
-        'REST API programmatic access',
-        'Custom domain reporting',
-        'Dedicated priority scanning queues'
+        'Unlimited scans / day',
+        'Continuous uptime monitoring',
+        'SSL expiry Slack/email alerts',
+        'White-label branded reports',
+        'Dedicated 24/7 technical support'
       ],
-      cta: 'Choose Agency',
+      cta: 'Choose Enterprise (Unlimited)',
       popular: false
     }
   ];
@@ -249,7 +252,13 @@ export const PricingFaqSection: React.FC<PricingFaqSectionProps> = ({ onScanClic
 
               <div className="pt-8">
                 <button
-                  onClick={onScanClick}
+                  onClick={() => {
+                    if (onSelectPlan) {
+                      onSelectPlan(plan.id);
+                    } else {
+                      onScanClick();
+                    }
+                  }}
                   className={`w-full py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all ${
                     plan.popular
                       ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30'

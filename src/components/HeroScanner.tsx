@@ -1,14 +1,29 @@
 import React, { useState } from 'react';
-import { Search, ShieldAlert, ArrowRight, CheckCircle2, Lock, Zap, FileText, Globe } from 'lucide-react';
+import { Search, ShieldAlert, ArrowRight, CheckCircle2, Lock, Zap, FileText, Globe, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { PLAN_LIMITS } from '../firebase';
 
 interface HeroScannerProps {
   onScan: (url: string) => void;
   isLoading: boolean;
+  onQuotaReached: (reason?: string) => void;
+  onOpenUpgradeModal: () => void;
 }
 
-export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) => {
+export const HeroScanner: React.FC<HeroScannerProps> = ({ 
+  onScan, 
+  isLoading,
+  onQuotaReached,
+  onOpenUpgradeModal
+}) => {
   const [urlInput, setUrlInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { user, profile, checkScanAllowed, openAuthModal } = useAuth();
+
+  const currentPlan = profile?.plan || 'free';
+  const planConfig = PLAN_LIMITS[currentPlan];
+  const scansUsed = profile?.dailyScansUsed || 0;
+  const isUnlimited = planConfig.dailyScanLimit === Infinity;
 
   const sampleUrls = [
     { label: 'Stripe', url: 'https://stripe.com' },
@@ -17,7 +32,7 @@ export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) =
     { label: 'Example', url: 'https://example.com' }
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -33,12 +48,26 @@ export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) =
       return;
     }
 
+    // Check plan quota
+    const quota = await checkScanAllowed();
+    if (!quota.allowed) {
+      onQuotaReached(quota.reason);
+      return;
+    }
+
     onScan(trimmed);
   };
 
-  const handleQuickPick = (url: string) => {
+  const handleQuickPick = async (url: string) => {
     setUrlInput(url);
     setError(null);
+
+    const quota = await checkScanAllowed();
+    if (!quota.allowed) {
+      onQuotaReached(quota.reason);
+      return;
+    }
+
     onScan(url);
   };
 
@@ -64,12 +93,12 @@ export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) =
         </h1>
 
         {/* Subheadline */}
-        <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+        <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
           Analyze your website's security, performance, SEO and technical health in minutes with actionable recommendations.
         </p>
 
         {/* URL Input Form */}
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto mb-5">
+        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto mb-4">
           <div className="relative flex flex-col sm:flex-row items-center p-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-2xl shadow-blue-950/40 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
             <div className="flex items-center w-full pl-3 pr-2 py-2">
               <Globe className="w-5 h-5 text-slate-400 mr-3 flex-shrink-0" />
@@ -109,6 +138,44 @@ export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) =
           )}
         </form>
 
+        {/* Live Plan Quota Indicator */}
+        <div className="max-w-2xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-2 px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+          <div className="flex items-center gap-2 text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            {user ? (
+              <span>
+                Plan: <strong className="text-white uppercase">{planConfig.badge}</strong> · Today's Scans: <strong>{isUnlimited ? `${scansUsed} (Unlimited)` : `${scansUsed} / ${planConfig.dailyScanLimit}`}</strong>
+              </span>
+            ) : (
+              <span>
+                Guest Mode: <strong className="text-white">3 Daily Scans</strong> · Create free account for 5 scans/day
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {user ? (
+              <button
+                type="button"
+                onClick={onOpenUpgradeModal}
+                className="text-blue-400 hover:text-blue-300 font-semibold hover:underline flex items-center gap-1"
+              >
+                <Zap className="w-3 h-3" />
+                <span>Switch / Upgrade Plan</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal('register')}
+                className="text-blue-400 hover:text-blue-300 font-semibold hover:underline flex items-center gap-1"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Register to unlock limits</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Quick Sample Picks */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-8 text-xs text-slate-400">
           <span>Or test a popular site:</span>
@@ -147,3 +214,4 @@ export const HeroScanner: React.FC<HeroScannerProps> = ({ onScan, isLoading }) =
     </section>
   );
 };
+
